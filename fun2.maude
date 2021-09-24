@@ -1,6 +1,20 @@
 sload pi
 sload basic-lex
 
+fmod IDNLIST is
+   inc QID .
+   sort IndList .
+   op nilIndList : -> IndList .
+   op _ : Qid -> IndList .
+   op _,_ : IndList IndList -> IndList [assoc id: nilIndList] .
+endfm
+
+fmod EXPRLIST is
+   sort ExprList .
+   op NilExprList : -> ExprList .
+   op _,_ : ExprList ExprList -> ExprList [assoc id: NilExprList] .
+endfm
+ 
 fmod FUN-LEX is 
      inc LEXICAL .
      inc BASIC-LEX .
@@ -36,8 +50,12 @@ fmod FUN-GRM is
      inc FLOAT .
      inc STRING .
      inc BOOL .
-     sorts Expr Idn Val .
-     subsort Idn Val < Expr .  
+     inc IDNLIST .
+     inc EXPRLIST .
+     sorts Expr Idn Val IdnL ExprL .
+     subsort Idn < IdnL .
+     subsort IdnL Val < Expr .  
+     subsort Expr < ExprL .
      op idn : Qid -> Idn .
      op rat : Rat -> Val .
      op flo : Float -> Val .
@@ -46,8 +64,8 @@ fmod FUN-GRM is
      ops _+_ _*_ _-_ _/_ _==_ _<_ _<=_ _>_ _>=_ _or_ _and_ : Expr Expr -> Expr [gather(E e) prec 20] .
      op ~_ : Expr -> Expr .
      op if_then_else_ : Expr Expr Expr -> Expr [prec 40] .
-     op fun_(_) =_ : Idn Idn Expr -> Expr [prec 50] .
-     op _(_) : Idn Expr -> Expr [prec 10] . 
+     op fun_(_) =_ : Idn IdnL Expr -> Expr [prec 50] .
+     op _(_) : Idn ExprL -> Expr [prec 10] . 
      op _,_ : Expr Expr -> Expr [prec 60 assoc] .
  endfm 
 
@@ -72,13 +90,16 @@ fmod FUN-TRAN2 is
 
      op compileIdn : Idn -> Id .
      var Q : Qid .
+     var IL1 : IdnL .
      eq compileIdn(idn(Q)) = id(Q) .
+     eq compileIdn(idn(Q), IL1) = id(Q) compileIdn(IL1).
 
      op compileExpr : Expr -> Statement .
 
      var R : Rat . var F : Float . var S : String . var B : Bool .
      vars E E1 E2 E3 : Expr .
      var I I1 I2 : Idn . 
+     var IL : IdnL . var EL : ExprL .
 
      eq compileExpr(rat(R)) = exp(val(R)) .
      eq compileExpr(flo(F)) = exp(val(F)) .
@@ -102,16 +123,17 @@ fmod FUN-TRAN2 is
      eq compileExpr(if E1 then E2 else E3) = 
         ite(compileExpr(E1), compileExpr(E2), compileExpr(E3)) .
 
-     eq compileExpr(fun I1 (I2) = E) = compileDec(fun I1 (I2) = E) .
+     eq compileExpr(fun I1 (IL) = E) = compileDec(fun I1 (IL) = E) .
 
-     eq compileExpr(I(E)) = recapp(compileIdn(I), compileExpr(E)) .
+     eq compileExpr(I(EL)) = recapp(compileIdn(I), compileExpr(EL)) .
+     eq compileExpr(E, EL) = let(compileExpr(E), compileExpr(EL)) .
 
-     eq compileExpr((fun I1 (I2) = E1, E2)) = 
-        let(compileDec(fun I1 (I2) = E1), compileExpr(E2)) .
+     eq compileExpr((fun I1 (IL) = E1, E2)) = 
+        let(compileDec(fun I1 (IL) = E1), compileExpr(E2)) .
 
      op compileDec : Expr -> Dec .
-     eq compileDec(fun I1 (I2) = E) = 
-        rec(compileIdn(I1), lambda(compileIdn(I2), compileExpr(E))) . 
+     eq compileDec(fun I1 (IL) = E) = 
+        rec(compileIdn(I1), lambda(compileIdn(IL), compileExpr(E))) . 
 endfm
 
 fmod FUN-RUN-TIME is 
